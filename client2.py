@@ -10,16 +10,17 @@ class Client2:
         self.nick_name = nick_name
         self.client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_sock_udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.client_sock_udp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 
 
     def udp_handler(self, port_num):
+
         self.client_sock_udp.bind(('127.0.0.1', port_num))
-        print("somthing")
         while True:
-            if not self.connected:
-                break
             message, address = self.client_sock_udp.recvfrom(4096)
+            if message.decode('utf-8') == 'EXIT':
+                break
             file = open("file_name.txt", 'wb')
             file.write(message)
             print(message.decode('utf-8'))
@@ -43,6 +44,7 @@ class Client2:
                     print("Goodbye")
                     connected = False
                     self.client_sock.close()
+                    self.client_sock_udp.close()
                 elif message == "nick?":
                     self.client_sock.send(self.nick_name.encode('utf-8'))
                 elif len(message) >= 14 and message[0:14] == "listen to port":

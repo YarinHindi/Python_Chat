@@ -9,14 +9,16 @@ class Server:
 
     def __init__(self) -> None:
         self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_sock_udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server_sock_udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.server_sock_udp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_sock.bind(('127.0.0.1', 55000))
         self.server_sock.listen(5)
         self.clients_map = {}
         self.clients_map_udp = {}
         self.file_names = []
         self.port_num = 50002
+        self.ports = [0 for i in range(0, 15)]
 
     def send_files(self, nick_name):
         for i in self.file_names:
@@ -24,19 +26,22 @@ class Server:
 
 
     def udp_transfer_files(self,nick_name,file_name):
-
         if self.clients_map_udp.get(nick_name) is None:
-            self.clients_map_udp[nick_name] = self.port_num
-            self.port_num += 1
-            self.sent_to_other_user(nick_name, f'listen to port {self.clients_map_udp[nick_name]}'.encode('utf-8'))
-            time.sleep(0.02)
+            for i in range(0, 15):
+                if self.ports[i] == 0:
+                    self.clients_map_udp[nick_name] = 50002 + i
+                    self.ports[i] = 1
+                    self.sent_to_other_user(nick_name, f'listen to port {self.clients_map_udp.get(nick_name)}'.encode('utf-8'))
+                    time.sleep(0.02)
+                    break
+        print(self.ports)
         with open(file_name, 'rb') as f:
             content = f.read()
         print(str(content[0]))
-        self.server_sock_udp.sendto(content[0:1024], ('127.0.0.1', self.clients_map_udp[nick_name]))
+        print(self.clients_map_udp.get(nick_name))
+        self.server_sock_udp.sendto(content[0:1024], ('127.0.0.1', self.clients_map_udp.get(nick_name)))
         message, address = self.server_sock_udp.recvfrom(4096)
         print((message, address))
-
 
     def broadcast(self, message, nick_name):
         for nick, client in self.clients_map.items():
@@ -62,6 +67,9 @@ class Server:
                     self.broadcast(f'{nick_name} has left the chat room'.encode('utf-8'), nick_name)
                     self.clients_map.get(nick_name).client_sock.send('Goodbye'.encode('utf-8'))
                     self.clients_map.pop(nick_name)
+                    self.server_sock_udp.sendto('EXIT'.encode('utf-8'), ('127.0.0.1', self.clients_map_udp.get(nick_name)))
+                    if self.clients_map_udp.get(nick_name) is not None:
+                        self.ports[self.clients_map_udp.get(nick_name)-50002] = 0
                     break
                 pure_message = message.split(": ")
                 file_message = message.split(" ")
@@ -72,7 +80,6 @@ class Server:
                         if file_name in self.file_names:
                             self.udp_transfer_files(nick_name, file_name)
                         else:
-                            print("why not 2")
                             self.sent_to_other_user(nick_name, 'there is no such a file with that name'.encode('utf-8'))
                 elif message == f'{nick_name}: get_file_names':
                     self.send_files(nick_name)
